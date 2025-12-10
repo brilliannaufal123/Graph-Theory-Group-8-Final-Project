@@ -68,6 +68,10 @@ pip install osmnx networkx matplotlib scipy scikit-learn
 1.  **Run the script:**
     ```bash
     python dijkstra.py
+    OR
+    python bfs.py
+    OR
+    python astar.py
     ```
 
 2.  **Configure Disasters (Optional):**
