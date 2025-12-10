@@ -123,8 +123,9 @@ def print_route_details(graph, route):
 * **Dataset:** We define dictionaries to map hospital codes (e.g., "UNA") to their human-readable names and real-world Latitude/Longitude coordinates.
 * **Navigation Helper:** The print_route_details function takes the list of Node IDs returned by Dijkstra and looks up the name attribute of the Edges connecting them. This converts a mathematical path (Node 1 -> Node 2) into human instructions ("Jalan Raya ITS -> Jalan Kertajaya").
 
-### C. Map Loading & Node MappingPythoncenter_point = (-7.2797, 112.7975)
+### C. Map Loading & Node Mapping
 ```python
+center_point = (-7.2797, 112.7975)
 G = ox.graph_from_point(center_point, dist=3000, network_type='drive')
 
 for code, (lat, lon) in hospitals.items():
@@ -132,7 +133,7 @@ for code, (lat, lon) in hospitals.items():
     hospital_nodes[code] = node_id
 ```
 * **Graph Creation:** We download the driveable road network within a 3km radius of ITS.
-* *Nodes:** Intersections.
+* **Nodes:** Intersections.
 * **Edges:** Roads.
 * **Nearest Node Mapping:** Graph algorithms cannot work with raw GPS coordinates (floats). We must "snap" the hospital coordinates to the nearest actual intersection (Node ID) on the map using ox.distance.nearest_nodes.
 
