@@ -120,8 +120,8 @@ hospitals = { "UNA": (-7.269, 112.784), ... }
 def print_route_details(graph, route):
     # ... (extracts street names from edge data)
 ```
-* **Dataset:* We define dictionaries to map hospital codes (e.g., "UNA") to their human-readable names and real-world Latitude/Longitude coordinates.
-* **Navigation Helper:* The print_route_details function takes the list of Node IDs returned by Dijkstra and looks up the name attribute of the Edges connecting them. This converts a mathematical path (Node 1 -> Node 2) into human instructions ("Jalan Raya ITS -> Jalan Kertajaya").
+* **Dataset:** We define dictionaries to map hospital codes (e.g., "UNA") to their human-readable names and real-world Latitude/Longitude coordinates.
+* **Navigation Helper:** The print_route_details function takes the list of Node IDs returned by Dijkstra and looks up the name attribute of the Edges connecting them. This converts a mathematical path (Node 1 -> Node 2) into human instructions ("Jalan Raya ITS -> Jalan Kertajaya").
 
 ### C. Map Loading & Node MappingPythoncenter_point = (-7.2797, 112.7975)
 ```python
@@ -131,10 +131,10 @@ for code, (lat, lon) in hospitals.items():
     node_id = ox.distance.nearest_nodes(G, X=lon, Y=lat)
     hospital_nodes[code] = node_id
 ```
-* **Graph Creation:* We download the driveable road network within a 3km radius of ITS.
-* *Nodes:* Intersections.
-* **Edges:* Roads.
-* **Nearest Node Mapping:* Graph algorithms cannot work with raw GPS coordinates (floats). We must "snap" the hospital coordinates to the nearest actual intersection (Node ID) on the map using ox.distance.nearest_nodes.
+* **Graph Creation:** We download the driveable road network within a 3km radius of ITS.
+* *Nodes:** Intersections.
+* **Edges:** Roads.
+* **Nearest Node Mapping:** Graph algorithms cannot work with raw GPS coordinates (floats). We must "snap" the hospital coordinates to the nearest actual intersection (Node ID) on the map using ox.distance.nearest_nodes.
 
 ### D. Graph Projection & Weight CalculationPythonG_proj = ox.project_graph(G)
 ```python
@@ -142,8 +142,8 @@ G_proj = ox.project_graph(G)
 G_proj = ox.add_edge_speeds(G_proj) 
 G_proj = ox.add_edge_travel_times(G_proj)
 ```
-* **Projection:* We convert the graph from Latitude/Longitude (degrees) to UTM (meters). This is essential for accurate distance measurement.
-* **Time Calculation:* Standard Dijkstra uses distance. To support "Fastest Time," we calculate the time required to traverse every edge:$$\text{Travel Time} = \frac{\text{Length (meters)}}{\text{Speed Limit (m/s)}}$$This creates a new attribute 'travel_time' on every edge.
+* **Projection:** We convert the graph from Latitude/Longitude (degrees) to UTM (meters). This is essential for accurate distance measurement.
+* **Time Calculation:** Standard Dijkstra uses distance. To support "Fastest Time," we calculate the time required to traverse every edge:$$\text{Travel Time} = \frac{\text{Length (meters)}}{\text{Speed Limit (m/s)}}$$This creates a new attribute 'travel_time' on every edge.
 
 ### E. Disaster Simulation LogicPythondef set_road_condition(graph, road_name_fragment, status):
 ```python
@@ -157,8 +157,8 @@ def set_road_condition(graph, road_name_fragment, status):
 This function is the core of the Decision Support System.
 1. It scans every road segment in the graph.
 2. If a road name matches the input (e.g., "Jalan Raya ITS"), it modifies the edge weight:
-* **BLOCKED:* Sets time to Infinity. Dijkstra will never select an infinite edge.
-* **FLOODED:* Multiplies time by 3. Dijkstra will only select this if the detour is 3x longer than the flooded path.
+* **BLOCKED:** Sets time to Infinity. Dijkstra will never select an infinite edge.
+* **FLOODED:** Multiplies time by 3. Dijkstra will only select this if the detour is 3x longer than the flooded path.
 
 ### F. The Multi-Target Routing Algorithm
 ```python
@@ -189,5 +189,5 @@ best_hosp, time, route = find_fastest_hospital(...)
 # Visualization
 ox.plot_graph_route(G_proj, route, route_color='b', ...)
 ```
-* **User Input:* Converts the pasted text string into float coordinates and snaps them to a Start Node.
-* **Plotting:* Uses matplotlib to render the map background (black) and overlays the calculated optimal route (blue line).
+* **User Input:** Converts the pasted text string into float coordinates and snaps them to a Start Node.
+* **Plotting:** Uses matplotlib to render the map background (black) and overlays the calculated optimal route (blue line).
