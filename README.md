@@ -6,111 +6,188 @@
 | Naufal Bintang Brillian | 5025241168 | IUP |
 | Stephanie Gabriella Adiseputra | 5025241081 | IUP |
 
-This document explains the Python implementation of a Decision Support System that models a city road network as a graph. It utilizes Dijkstra and BFS to calculate evacuation routes to the nearest hospital.
-Unlike static railway maps, this system is dynamic: it simulates real-time disaster updates (Floods/Landslides) that alter travel times or block roads entirely.
 
-**1. Dataset Overview**
-<br>
+## 1. Project Overview
+Indonesia is highly susceptible to floods and infrastructure failure, which often isolates communities from critical healthcare. Standard GPS systems calculate routes based on static maps, failing to account for sudden disasters like flash floods or collapsed bridges.
 
-**1.1 Hospital List (nodes / hospitals)**
-All algorithms (Dijkstra, BFS) use the same 25 major hospitals in Surabaya (they are abbreaviated in order to simplify):
+**Resilient Routing** is a Python-based Decision Support System (DSS) that models the Surabaya ITS/Sukolilo area as a dynamic graph. Unlike standard navigation, this system allows operators to simulate road failures in real-time and calculates the safest, fastest evacuation route to the nearest of three major hospitals.
+
+## 2. Key Features
+* **Real-World Data:** Utilizes `osmnx` to fetch live street network data from OpenStreetMap.
+* **Time-Based Routing:** Calculates routes based on estimated travel time (seconds), not just distance.
+* **Disaster Simulation:** Allows operators to mark specific roads as:
+    * **FLOODED:** Increases travel time by 3x (simulating driving through water).
+    * **BLOCKED:** Sets travel time to Infinity (road is impassable).
+* **Multi-Target Analysis:** Automatically runs Dijkstra’s Algorithm to three different hospitals simultaneously and selects the best destination based on current road conditions.
+
+## 3. Hospital Targets
+The system evaluates routes to these three facilities:
+1.  **RS UNAIR:** RS Universitas Airlangga (North-West)
+2.  **ITS Medical Center:** Internal Campus Clinic (Central)
+3.  **RSUD Haji:** General Hospital (South-West)
+
+## 4. How It Works (Technical Explanation)
+
+### A. Graph Construction
+The system downloads the road network for a 3km radius around ITS Surabaya.
+* **Nodes ($V$):** Intersections and locations.
+* **Edges ($E$):** Roads connecting them.
+* **Weights ($W$):** We convert road length into **Travel Time** using estimated speed limits.
+
+### B. The Disaster Logic
+Before routing, the system applies a modifier function `set_road_condition(Graph, StreetName, Status)`.
+Mathematically, the weight of an edge $e$ is modified as:
+
+$$
+W_{new}(e) =
+\begin{cases}
+W_{original}(e) & \text{if Status = NORMAL} \\
+W_{original}(e) \times 3 & \text{if Status = FLOODED} \\
+\infty & \text{if Status = BLOCKED}
+\end{cases}
+$$
+
+### C. The Routing Algorithm
+The system uses **Dijkstra’s Algorithm** to find the shortest path from the user's location ($S$).
+1.  It calculates $D_{UNA} = \text{Dijkstra}(S, \text{RS UNAIR})$
+2.  It calculates $D_{ITS} = \text{Dijkstra}(S, \text{ITS Med Center})$
+3.  It calculates $D_{HAJ} = \text{Dijkstra}(S, \text{RSUD Haji})$
+4.  It compares the results:
+    $$\text{Best Destination} = \min(D_{UNA}, D_{ITS}, D_{HAJ})$$
+
+This ensures that if the road to the closest hospital (geographically) is blocked, the system automatically reroutes the ambulance to the next best hospital that is actually reachable.
+
+## 5. Requirements & Installation
+Ensure you have Python installed. Install the required libraries:
+
+```bash
+pip install osmnx networkx matplotlib scipy scikit-learn
 ```
-nodes = [
-    "DST", "SIL", "MYP", "PRS", "NHS",
-    "BHY", "UNA", "HSU", "RSL", "MRN",
-    "AUS", "RKZ", "BDH", "ONK", "ADH",
-    "MTK", "RYL", "JMR", "ALR", "PHC",
-    "SMS", "SBI", "GTR", "WYS", "SEM"
-]
+## 6. How to Run & Test
+
+1.  **Run the script:**
+    ```bash
+    python dijkstra.py
+    ```
+
+2.  **Configure Disasters (Optional):**
+    Open the script and edit the `CONTROL PANEL` section to simulate disasters:
+    ```python
+    # Example: Block the main highway
+    set_road_condition(G_proj, "Jalan Raya Kertajaya Indah", "BLOCKED")
+    ```
+
+3.  **Input Location:**
+    When prompted, paste coordinates from Google Maps.
+    * *Test Coordinate (Inside ITS):* `-7.2824, 112.7954`
+
+## 7. Example Scenarios
+
+### Scenario A: Normal Conditions
+* **Input:** User is at ITS Library.
+* **Status:** All roads Open.
+* **Result:** System routes to **Medical Center ITS** (1.7 mins) via the main gate.
+
+### Scenario B: The "Muddy" Road
+* **Input:** User is at ITS Library.
+* **Status:** "Jalan Arief Rahman Hakim" is **FLOODED**.
+* **Result:** The main route is now too slow. The system reroutes the user to **RSUD Haji** (2.3 mins) because the highway is faster than the flooded main gate.
+
+### Scenario C: Total Lockdown
+* **Input:** User is at ITS Library.
+* **Status:** Main Highway (Kertajaya) and Main Gate (Arief Rahman) are **BLOCKED**.
+* **Result:** System finds a "rat path" (*jalan tikus*) through the residential area (Jalan Gebang Lor) to bypass the blockage, proving the system's resilience.
+
+## 8. Code Implementation Details
+
+This section explains the logic behind the `dijkstra.py` script, breaking down how the graph theory concepts are applied in Python.
+
+### A. Library Imports
+```python
+import osmnx as ox
+import networkx as nx
+import matplotlib.pyplot as plt
 ```
+* **osmnx:** The core library used to download real-world street networks from OpenStreetMap and convert them into graph objects.
+* **networkx:** The mathematical engine that performs the graph algorithms (Dijkstra, Shortest Path).
+* **matplotlib:** Used to visualize the final result (the map and the route line).
 
-<br>
+### B. Configuration & Helper Functions
+```python
+hospital_names = { ... }
+hospitals = { "UNA": (-7.269, 112.784), ... }
 
-**Hospital Code Explanation**
+def print_route_details(graph, route):
+    # ... (extracts street names from edge data)
+```
+* **Dataset:* We define dictionaries to map hospital codes (e.g., "UNA") to their human-readable names and real-world Latitude/Longitude coordinates.
+* **Navigation Helper:* The print_route_details function takes the list of Node IDs returned by Dijkstra and looks up the name attribute of the Edges connecting them. This converts a mathematical path (Node 1 -> Node 2) into human instructions ("Jalan Raya ITS -> Jalan Kertajaya").
 
-Below is the full meaning of each code, sorted descending by quality (from highest-tier to lower-tier hospitals). We sorted these because this ordering is ideal for routing priority in disaster scenarios.
+### C. Map Loading & Node MappingPythoncenter_point = (-7.2797, 112.7975)
+```python
+G = ox.graph_from_point(center_point, dist=3000, network_type='drive')
 
+for code, (lat, lon) in hospitals.items():
+    node_id = ox.distance.nearest_nodes(G, X=lon, Y=lat)
+    hospital_nodes[code] = node_id
+```
+* **Graph Creation:* We download the driveable road network within a 3km radius of ITS.
+* *Nodes:* Intersections.
+* **Edges:* Roads.
+* **Nearest Node Mapping:* Graph algorithms cannot work with raw GPS coordinates (floats). We must "snap" the hospital coordinates to the nearest actual intersection (Node ID) on the map using ox.distance.nearest_nodes.
 
-**Top-Tier Hospitals**
+### D. Graph Projection & Weight CalculationPythonG_proj = ox.project_graph(G)
+```python
+G_proj = ox.project_graph(G)
+G_proj = ox.add_edge_speeds(G_proj) 
+G_proj = ox.add_edge_travel_times(G_proj)
+```
+* **Projection:* We convert the graph from Latitude/Longitude (degrees) to UTM (meters). This is essential for accurate distance measurement.
+* **Time Calculation:* Standard Dijkstra uses distance. To support "Fastest Time," we calculate the time required to traverse every edge:$$\text{Travel Time} = \frac{\text{Length (meters)}}{\text{Speed Limit (m/s)}}$$This creates a new attribute 'travel_time' on every edge.
 
-These hospitals have the highest capacity, strongest emergency departments, and the most complete medical services.
+### E. Disaster Simulation LogicPythondef set_road_condition(graph, road_name_fragment, status):
+```python
+def set_road_condition(graph, road_name_fragment, status):
+    # Iterates through all edges to find matching road names
+    if status == 'BLOCKED':
+        data['travel_time'] = float('inf')
+    elif status == 'FLOODED':
+        data['travel_time'] *= 3
+```
+This function is the core of the Decision Support System.
+1. It scans every road segment in the graph.
+2. If a road name matches the input (e.g., "Jalan Raya ITS"), it modifies the edge weight:
+* **BLOCKED:* Sets time to Infinity. Dijkstra will never select an infinite edge.
+* **FLOODED:* Multiplies time by 3. Dijkstra will only select this if the detour is 3x longer than the flooded path.
 
-- **DST - Dr. Soetomo General Hospital (RSUD Dr. Soetomo)** <br>
-National referral hospital; the largest and most complete medical center in East Java.
-- **SIL - Siloam Hospitals Surabaya** <br>
-Premium private hospital with strong emergency care and modern facilities.
-- **MYP - Mayapada Hospital Surabaya** <br>
-High-end private hospital known for advanced diagnostics and comprehensive services.
-- **PRS - Premier Surabaya Hospital** <br>
-Excellent for cardiac care, surgery, ICU, trauma services, and emergency response.
-- **NHS - National Hospital Surabaya** <br>
-Modern mid-to-upper class general hospital with high-tech facilities and 24/7 ER.
+### F. The Multi-Target Routing Algorithm
+```python
+def find_fastest_hospital(graph, start_node, hospital_nodes):
+    shortest_time = float('inf')
+    
+    for code, target_node in hospital_nodes.items():
+        time = nx.shortest_path_length(..., weight='travel_time')
+        
+        if time < shortest_time:
+            shortest_time = time
+            best_hospital = code
+            best_path = ...
+```
+This block executes the routing strategy:
+1. It iterates through all 3 hospitals.
+2. It runs Dijkstra's Algorithm for each one, using 'travel_time' as the weight.
+3. It compares the results. If the path to RSUD Haji is 180 seconds, but the path to Medical Center ITS is 600 seconds (due to floods), it automatically selects RSUD Haji as the best_hospital.
 
+### G. Execution & Visualization
+```python
+# User Input Processing
+start_node = ox.distance.nearest_nodes(...)
 
-**Upper-Tier Hospitals**
+# Run Algorithm
+best_hosp, time, route = find_fastest_hospital(...)
 
-High-quality hospitals with strong general services, specialty clinics, and emergency capabilities.
-
-- **BHY - Bhayangkara Hospital Surabaya** <br>
-Police-operated hospital; strong trauma and emergency handling.
-- **UNA - Airlangga University Hospital (RS UNAIR)** <br>
-Teaching hospital with a wide range of specialty services.
-- **HSU - Husada Utama Hospital** <br>
-Well-known for full diagnostic facilities (MRI, CT, advanced labs).
-- **RSL - Naval Hospital Dr. Ramelan** <br>
-Major military hospital with extensive medical capabilities.
-- **MRN - Marine Corps Hospital Gunungsari** <br>
-Military hospital providing general and emergency services.
-- **AUS - Air Force Hospital dr. Soemitro** <br>
-Air Force medical facility with standard trauma services.
-- **RKZ - St. Vincentius a Paulo Catholic Hospital (RKZ)** <br>
-Long-standing nonprofit hospital with comprehensive care.
-- **BDH - Bhakti Dharma Husada Hospital** <br>
-Municipal hospital with full general services and 24/7 ER.
-- **ONK - Surabaya Oncology Hospital** <br>
-Specialized cancer center; top-tier for oncology but not a general hospital.
-
-
-
-Middle-Tier Hospitals
-
-Reliable general hospitals with decent facilities but not at the premium tier.
-
-ADH – Adi Husada Undaan Hospital
-Long-established private general hospital with solid service standards.
-
-MTK – Mitra Keluarga Surabaya Hospital
-Well-known family hospital chain with stable service quality.
-
-RYL – Royal Hospital Surabaya
-General hospital with regular specialty services.
-
-JMR – Jemursari Islamic Hospital
-Popular mid-tier general hospital.
-
-ALR – Al-Irsyad Hospital Surabaya
-Islamic hospital with adequate general facilities.
-
-PHC – PHC Hospital Surabaya
-Corporate-managed hospital with 24/7 emergency services.
-
-
-
-Lower Middle-Tier Hospitals
-
-Hospitals that are operational but not in the premium or upper tiers.
-
-SMS – Surabaya Medical Service Hospital
-Mid-range private general hospital.
-
-SBI – Surabaya International Hospital
-General hospital with moderate service quality.
-
-GTR – Gotong Royong Hospital
-Mid-tier hospital with basic general service.
-
-WYS – Wiyung Sejahtera Hospital
-Standard regional general hospital.
-
-SEM – Sejahtera Medical Hospital
-Lower-tier general hospital; lowest benchmark in the dataset.
+# Visualization
+ox.plot_graph_route(G_proj, route, route_color='b', ...)
+```
+* **User Input:* Converts the pasted text string into float coordinates and snaps them to a Start Node.
+* **Plotting:* Uses matplotlib to render the map background (black) and overlays the calculated optimal route (blue line).
