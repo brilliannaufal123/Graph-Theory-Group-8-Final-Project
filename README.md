@@ -137,7 +137,7 @@ for code, (lat, lon) in hospitals.items():
 * **Edges:** Roads.
 * **Nearest Node Mapping:** Graph algorithms cannot work with raw GPS coordinates (floats). We must "snap" the hospital coordinates to the nearest actual intersection (Node ID) on the map using ox.distance.nearest_nodes.
 
-### D. Graph Projection & Weight CalculationPythonG_proj = ox.project_graph(G)
+### D. Graph Projection & Weight Calculation
 ```python
 G_proj = ox.project_graph(G)
 G_proj = ox.add_edge_speeds(G_proj) 
@@ -146,7 +146,7 @@ G_proj = ox.add_edge_travel_times(G_proj)
 * **Projection:** We convert the graph from Latitude/Longitude (degrees) to UTM (meters). This is essential for accurate distance measurement.
 * **Time Calculation:** Standard Dijkstra uses distance. To support "Fastest Time," we calculate the time required to traverse every edge:$$\text{Travel Time} = \frac{\text{Length (meters)}}{\text{Speed Limit (m/s)}}$$This creates a new attribute 'travel_time' on every edge.
 
-### E. Disaster Simulation LogicPythondef set_road_condition(graph, road_name_fragment, status):
+### E. Disaster Simulation Logic
 ```python
 def set_road_condition(graph, road_name_fragment, status):
     # Iterates through all edges to find matching road names
