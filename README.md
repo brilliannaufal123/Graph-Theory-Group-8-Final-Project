@@ -57,6 +57,12 @@ The system uses **Dijkstra’s Algorithm** to find the shortest path from the us
 
 This ensures that if the road to the closest hospital (geographically) is blocked, the system automatically reroutes the ambulance to the next best hospital that is actually reachable.
 
+### IMAGE EXAMPLE:
+
+<img width="846" height="919" alt="image" src="https://github.com/user-attachments/assets/7fa4748a-6204-487e-85dc-bf58cdfecf3f" />
+
+(pointing to Medical Center ITS)
+
 ## 5. Requirements & Installation
 Ensure you have Python installed. Install the required libraries:
 
@@ -68,6 +74,10 @@ pip install osmnx networkx matplotlib scipy scikit-learn
 1.  **Run the script:**
     ```bash
     python dijkstra.py
+    OR
+    python bfs.py
+    OR
+    python astar.py
     ```
 
 2.  **Configure Disasters (Optional):**
