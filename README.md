@@ -6,6 +6,9 @@
 | Naufal Bintang Brillian | 5025241168 | IUP |
 | Stephanie Gabriella Adiseputra | 5025241081 | IUP |
 
+This document explains the Python implementation of a Decision Support System that models a city road network as a graph. It utilizes Dijkstra and BFS to calculate evacuation routes to the nearest hospital.
+Unlike static railway maps, this system is dynamic: it simulates real-time disaster updates (Floods/Landslides) that alter travel times or block roads entirely.
+
 **1. Dataset Overview**
 <br>
 
