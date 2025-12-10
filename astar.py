@@ -56,7 +56,42 @@ print("Calculating road speeds and travel times...")
 G_proj = ox.add_edge_speeds(G_proj) 
 G_proj = ox.add_edge_travel_times(G_proj)
 
-# --- SECTION 2: USER INPUT ---
+# --- SECTION 2: SIMULATION CONTROLS (ADDED) ---
+
+def set_road_condition(graph, road_name_fragment, status):
+    """
+    Modifies the 'travel_time' of roads matching the name.
+    Status: 'BLOCKED' (Inf), 'FLOODED' (3x slower), 'NORMAL' (No change)
+    """
+    count = 0
+    # Iterate through all edges to find matching street names
+    for u, v, k, data in graph.edges(keys=True, data=True):
+        if 'name' in data:
+            names = data['name'] if isinstance(data['name'], list) else [data['name']]
+            for name in names:
+                if road_name_fragment.lower() in name.lower():
+                    if status == 'BLOCKED':
+                        data['travel_time'] = float('inf') # A* will treat this as impassable
+                    elif status == 'FLOODED':
+                        data['travel_time'] *= 3  # A* will apply 3x penalty
+                    count += 1
+                    
+    if count > 0:
+        print(f"SIMULATION APPLIED: '{road_name_fragment}' is now {status} (Affected {count} segments)")
+    else:
+        print(f"WARNING: No roads found matching '{road_name_fragment}'")
+
+# --- *** CONTROL PANEL: EDIT THIS TO TEST *** ---
+
+# Example 1: Block the main highway (uncomment to test)
+# set_road_condition(G_proj, "Jalan Arief Rahman Hakim", "BLOCKED")
+
+# Example 2: Flood the coastal road (uncomment to test)
+# set_road_condition(G_proj, "Jalan Raya Kertajaya Indah", "FLOODED")
+
+# ------------------------------------------------
+
+# --- SECTION 3: USER INPUT ---
 print("\n--- MANUAL LOCATION PICKER ---")
 default_input = "-7.28, 112.79" 
 user_input = input(f"Paste start coordinates (Lat, Lon) [Enter for default]: ")
@@ -69,22 +104,20 @@ start_lat, start_lon = float(lat_str), float(lon_str)
 # Find the closest road node to the user's input
 start_node = ox.distance.nearest_nodes(G, X=start_lon, Y=start_lat)
 
-# --- SECTION 3: A* (A-STAR) ALGORITHM ---
+# --- SECTION 4: A* (A-STAR) ALGORITHM ---
 
-# --- CRITICAL FIX START ---
-# We must estimate TIME, not DISTANCE, because our weight is 'travel_time'.
-# We divide distance by a max theoretical speed (e.g., 100km/h ~= 28m/s).
-# This ensures the heuristic is "admissible" (never overestimates cost).
 def time_heuristic(u, v):
+    # Access x and y coordinates (in meters) from the graph nodes
     x1, y1 = G_proj.nodes[u]['x'], G_proj.nodes[u]['y']
     x2, y2 = G_proj.nodes[v]['x'], G_proj.nodes[v]['y']
     
     # Euclidean distance in meters
     dist_meters = math.sqrt((x1 - x2)**2 + (y1 - y2)**2)
     
-    max_speed_mps = 28.0 # ~100 km/h
+    # Divide by max speed (~100km/h in m/s) to get estimated TIME
+    # This ensures the heuristic is admissible (never overestimates)
+    max_speed_mps = 28.0 
     return dist_meters / max_speed_mps
-# --- CRITICAL FIX END ---
 
 def find_fastest_hospital_astar(graph, start_node, hospital_nodes):
     shortest_time = float('inf')
@@ -97,7 +130,7 @@ def find_fastest_hospital_astar(graph, start_node, hospital_nodes):
         try:
             # NetworkX A* Implementation
             path = nx.astar_path(graph, start_node, target_node, 
-                                 heuristic=time_heuristic,  # Using fixed heuristic
+                                 heuristic=time_heuristic, 
                                  weight='travel_time')
             
             # Calculate total time for this path manually
@@ -111,14 +144,14 @@ def find_fastest_hospital_astar(graph, start_node, hospital_nodes):
                 best_path = path
                 
         except nx.NetworkXNoPath:
-            print(f" -> No path found to {code}")
+            print(f" -> No path found to {code} (Might be fully blocked)")
             continue
             
     return best_hospital, shortest_time, best_path
 
 best_hosp, time_sec, route = find_fastest_hospital_astar(G_proj, start_node, hospital_nodes)
 
-# --- SECTION 4: OUTPUT & VISUALIZATION ---
+# --- SECTION 5: OUTPUT & VISUALIZATION ---
 if best_hosp:
     full_name = hospital_names[best_hosp]
     minutes = time_sec / 60
@@ -132,6 +165,7 @@ if best_hosp:
     print_route_details(G_proj, route)
 
     print("Displaying map...")
+    # Plotting A* route in Green
     fig, ax = ox.plot_graph_route(G_proj, route, route_color='g', route_linewidth=6, node_size=0)
     plt.show()
 else:
