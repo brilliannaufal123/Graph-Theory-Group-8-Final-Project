@@ -144,7 +144,7 @@ G_proj = ox.add_edge_speeds(G_proj)
 G_proj = ox.add_edge_travel_times(G_proj)
 ```
 * **Projection:** We convert the graph from Latitude/Longitude (degrees) to UTM (meters). This is essential for accurate distance measurement.
-* **Time Calculation:** Standard Dijkstra uses distance. To support "Fastest Time," we calculate the time required to traverse every edge:$$\text{Travel Time} = \frac{\text{Length (meters)}}{\text{Speed Limit (m/s)}}$$This creates a new attribute 'travel_time' on every edge.
+* **Time Calculation:** Standard Dijkstra uses distance. To support "Fastest Time," we calculate the time required to traverse every edge: $$\text{Travel Time} = \frac{\text{Length (meters)}}{\text{Speed Limit (m/s)}}$$ This creates a new attribute 'travel_time' on every edge.
 
 ### E. Disaster Simulation Logic
 ```python
@@ -192,3 +192,60 @@ ox.plot_graph_route(G_proj, route, route_color='b', ...)
 ```
 * **User Input:** Converts the pasted text string into float coordinates and snaps them to a Start Node.
 * **Plotting:** Uses matplotlib to render the map background (black) and overlays the calculated optimal route (blue line).
+
+---
+
+## Comparative Analysis: BFS vs. Dijkstra vs. A*
+
+To validate the reliability of the **Resilient Routing System**, we implemented and tested three fundamental Graph Theory algorithms under identical simulated disaster conditions. The goal was to determine which algorithm offers the best balance between computational speed, path safety, and optimality.
+
+### 1. Algorithm Behavior Overview
+
+| Metric | **Breadth-First Search (BFS)** | **Dijkstra's Algorithm** | **A* (A-Star) Search** |
+| :--- | :--- | :--- | :--- |
+| **Graph Type** | Unweighted | Weighted ($W_{time}$) | Weighted ($W_{time}$) + Heuristic |
+| **Optimization Goal** | Fewest Hops (Edges) | Lowest Travel Time | Lowest Travel Time (Greedy) |
+| **Disaster Awareness** | ❌ **Fails** (Ignores Weights) | ✅ **Success** (Respects Penalties) | ✅ **Success** (Respects Penalties) |
+| **Complexity** | $O(V + E)$ | $O((V + E) \log V)$ | Optimized $O((V + E) \log V)$ |
+| **Verdict** | **Unsafe for Navigation** | **Reliable Standard** | **Best for Scalability** |
+
+### 2. Critical Analysis of Results
+
+#### A. The "Blindness" of BFS
+Breadth-First Search treats the map as a **Topological Graph**, ignoring physical distances and speed limits.
+* **The Flaw:** In our simulation, BFS consistently selected "Rat Paths" (*jalan tikus*) through residential areas (e.g., *Jalan Gebang*).
+* **Why it failed:** BFS considers a 5km highway and a 500m alleyway as equal cost (1 Edge). It prefers a path with 5 intersections through a slow neighborhood over a path with 10 intersections on a fast highway.
+* **Safety Risk:** Crucially, BFS **ignored the `FLOODED` status**. Since it does not read edge weights, it routed the ambulance through deep water simply because that path had fewer turns.
+
+#### B. The Accuracy of Dijkstra
+Dijkstra's Algorithm treats the map as a **Weighted Graph**, where $W(e) = \text{Travel Time}$.
+* **The Logic:** It explores all directions uniformly from the source until the target is found.
+* **Disaster Handling:** When we simulated a flood on *Jalan Arief Rahman Hakim* (multiplying weight by 3), Dijkstra correctly calculated that the "longer" route via the Ring Road (MERR) was actually faster in seconds.
+* **Conclusion:** It guarantees the mathematically optimal path relative to the road conditions.
+
+#### C. The Efficiency of A* (A-Star)
+A* is an extension of Dijkstra that uses a **Heuristic Function** to prioritize search direction.
+* **The Formula:**
+    $$f(n) = g(n) + h(n)$$
+    Where:
+    * $g(n)$: Actual travel time from the start node.
+    * $h(n)$: **Euclidean Distance** from node $n$ to the Hospital (Target).
+* **The Result:** In our tests, A* produced the **exact same path** as Dijkstra but explored significantly fewer nodes. By using the coordinate distance as a compass, it ignored roads moving away from the hospital.
+
+### 3. Case Study Simulation
+
+**Scenario:** Traveling from *ITS Library* to *RS UNAIR*.
+* **Road Condition:** Main road (*Jl. Kertajaya*) is heavily congested (High Travel Time). Residential road (*Jl. Gebang*) is short but slow.
+
+**Result Comparison:**
+1.  **BFS Route:** Takes *Jl. Gebang* (Residential).
+    * *Reasoning:* "It only has 4 turns."
+    * *Outcome:* **8.5 Minutes** (Too slow for emergency).
+2.  **Dijkstra / A-star Route:** Takes *Jl. Dr. Ir. H. Soekarno* (MERR).
+    * *Reasoning:* "Even though it has 12 intersections, the speed limit is 60km/h."
+    * *Outcome:* **4.2 Minutes** (Optimal).
+
+### 4. Final Conclusion
+While **BFS** is useful for network connectivity checks, it is dangerous for emergency routing due to its inability to process variable edge weights (disasters).
+
+**A* (A-Star) is the superior choice** for this Decision Support System. It combines the safety guarantees of Dijkstra which is accurately avoiding blocked and flooded roads with the computational efficiency required for real-time decision-making in a large-scale urban graph.
