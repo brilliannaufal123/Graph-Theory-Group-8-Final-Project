@@ -68,10 +68,6 @@ pip install osmnx networkx matplotlib scipy scikit-learn
 1.  **Run the script:**
     ```bash
     python dijkstra.py
-    OR
-    python bfs.py
-    OR
-    python astar.py
     ```
 
 2.  **Configure Disasters (Optional):**
@@ -196,6 +192,171 @@ ox.plot_graph_route(G_proj, route, route_color='b', ...)
 ```
 * **User Input:** Converts the pasted text string into float coordinates and snaps them to a Start Node.
 * **Plotting:** Uses matplotlib to render the map background (black) and overlays the calculated optimal route (blue line).
+
+## 9. Code Implementation Details (bfs.py)
+
+This section details the logic behind the `bfs.py` script. Unlike the Dijkstra implementation which focuses on time, this script focuses on topological simplicity (number of turns/segments).
+
+### A. Library Imports
+```python
+import osmnx as ox
+import networkx as nx
+import matplotlib.pyplot as plt
+```
+
+- **osmnx & networkx**: The core libraries used for graph construction and algorithmic processing.
+- **matplotlib**: Used to visualize the route (rendered in Red for BFS to distinguish from Dijkstra's Blue).
+
+### B. Configuration & Helper Functions
+```
+hospital_names = { ... }
+hospitals = { "UNA": (-7.269, 112.784), ... }
+
+def print_route_details(graph, route):
+    # ... (extracts street names from edge data)
+```
+- **Dataset**: We define the same dictionaries as the Dijkstra script to map hospital codes to coordinates. This ensures consistency across all experiments.
+- **Navigation Helper**: The `print_route_details` function converts the list of Node IDs returned by BFS into human-readable street names.
+
+### C. Map Loading & Graph Preparation
+```
+center_point = (-7.2797, 112.7975)
+G = ox.graph_from_point(center_point, dist=3000, network_type='drive')
+G_proj = ox.project_graph(G)
+
+# Note: Speeds are calculated ONLY for reporting, not for routing
+G_proj = ox.add_edge_travel_times(G_proj)
+```
+- **Graph Creation**: We download the same 3km radius network around ITS.
+- **The Difference**: While we still calculate `travel_time` attributes using `add_edge_travel_times`, BFS does not use them for decision making. They are calculated solely to show the user "how long" the BFS path would actually take in the real world (usually highlighting its inefficiency).
+
+### D. Disaster Logic (Topology vs. Weights)
+```
+def set_road_condition(graph, road_name_fragment, status):
+    if status == 'BLOCKED':
+        graph.remove_edges_from(edges_to_remove)
+    elif status == 'FLOODED':
+        print("WARNING: BFS ignores speed, route might pass here.")
+```
+This function highlights the fundamental limitation of BFS in disaster scenarios:
+
+1 - **BLOCKED (Edge Removal)**: BFS ignores edge weights (infinity doesn't stop it). To simulate a blockage in BFS, we must physically remove the edge from the graph topology ($E' = E - \{e_{blocked}\}$). <br>
+2 - **FLOODED (Ignored)**: Since BFS treats every road as "1 Hop," it cannot process the concept of a "slow" road. The script issues a warning, but the algorithm will likely still route through the flood if it is the shortest path by segment count.
+
+### E. The BFS Routing Algorithm
+```
+def find_nearest_hospital_bfs(graph, start_node, hospital_nodes):
+    min_hops = float('inf')
+    
+    for code, target_node in hospital_nodes.items():
+        # Key Difference: weight=None for Unweighted Search
+        path = nx.shortest_path(graph, start_node, target_node, weight=None)
+        hops = len(path) - 1
+        
+        if hops < min_hops:
+            min_hops = hops
+            best_hospital = code
+```
+
+This is the core algorithmic difference:
+
+- **Unweighted Search**: We call `nx.shortest_path` with `weight=None`.
+- **The Metric**: The "cost" is defined strictly by the number of edges (Hops).
+- **Logic**: A 5km highway (1 edge) and a 100m alleyway (1 edge) are treated as identical costs.
+
+
+### F. Execution & Post-Calculation
+```
+# 1. Run BFS
+best_hosp, hops_count, route = find_nearest_hospital_bfs(...)
+
+# 2. Calculate actual time for user reference
+real_time_sec = calculate_actual_time(G_proj, route)
+
+# 3. Visualization
+ox.plot_graph_route(..., route_color='r')
+```
+
+- **Post-Processing**: Since BFS doesn't optimize for time, we run a custom helper function `calculate_actual_time` after the route is found. This sums up the travel times of the chosen path segments to demonstrate the difference between "Simplest Path" and "Fastest Path" to the user.
+- **Visualization**: The route is plotted in Red to visually differentiate it from the optimal Dijkstra/A* path.
+
+
+## 10. Code Implementation Details (astar.py)
+
+This section explains the logic behind the `astar.py` script. A* is an "informed" search algorithm that improves upon Dijkstra by using a heuristic to estimate the remaining distance to the goal, allowing it to search more efficiently.
+
+### A. Library Imports
+```
+import osmnx as ox
+import networkx as nx
+import matplotlib.pyplot as plt
+import math
+```
+- **math**: This is the key addition compared to the other scripts. We use `math` to calculate the square root required for the Euclidean distance (Pythagorean theorem).
+- **osmnx, networkx, matplotlib**: Standard graph and visualization libraries.
+
+### B. Map Loading & Graph Projection
+```
+center_point = (-7.2797, 112.7975)
+G = ox.graph_from_point(center_point, dist=3000, network_type='drive')
+G_proj = ox.project_graph(G)
+
+# Speeds are crucial for A* (g-score)
+G_proj = ox.add_edge_speeds(G_proj) 
+G_proj = ox.add_edge_travel_times(G_proj)
+```
+- **Projecting** *($x, y$)*: The `ox.project_graph(G)` step is absolutely critical for A*. It converts the coordinate system from Degrees (Lat/Lon) to Meters (UTM).
+- It's beacuse the heuristic function needs to calculate distance in meters. If we didn't project the graph, the Pythagorean theorem would calculate distance in "degrees," which would break the algorithm.
+
+### C. The Heuristic Function (Euclidean Distance)
+```
+def dist_heuristic(u, v):
+    # Access x and y coordinates (in meters) from the graph nodes
+    x1, y1 = G_proj.nodes[u]['x'], G_proj.nodes[u]['y']
+    x2, y2 = G_proj.nodes[v]['x'], G_proj.nodes[v]['y']
+    
+    # Pythagorean theorem
+    return math.sqrt((x1 - x2)**2 + (y1 - y2)**2)
+```
+
+This function is the "brain" of A*.
+1 - **Input**: It takes the current node u and the target node v (the hospital).
+2 - **Logic**: It calculates the straight-line distance ("as the crow flies") using the standard distance formula: $d = \sqrt{(x_1-x_2)^2 + (y_1-y_2)^2}$.
+3 - **Result**: This value ( $h(n)$ ) allows the algorithm to prioritize roads that geographically lead towards the hospital, rather than exploring in all directions like Dijkstra.
+
+### D. The A* Routing Algorithm
+```
+def find_fastest_hospital_astar(graph, start_node, hospital_nodes):
+    shortest_time = float('inf')
+    
+    for code, target_node in hospital_nodes.items():
+        # A* Implementation:
+        # heuristic: The function we defined above
+        # weight: 'travel_time' (actual cost to drive)
+        path = nx.astar_path(graph, start_node, target_node, 
+                             heuristic=dist_heuristic, 
+                             weight='travel_time')
+        
+        # Calculate exact time cost
+        current_time = nx.path_weight(graph, path, weight='travel_time')
+```
+
+- **Dual Metrics**: The algorithm minimizes $f(n) = g(n) + h(n)$.
+   - `weight='travel_time'` represents $g(n)$ (the actual time spent driving so far).
+   - `heuristic=dist_heuristic` represents $h(n)$ (the estimated distance remaining).
+- **Optimization**: This ensures we find the fastest path (like Dijkstra) but explore fewer unnecessary nodes (efficiency).
+
+### E. Execution & Visualization
+```
+# 1. Run A*
+best_hosp, time_sec, route = find_fastest_hospital_astar(...)
+
+# 2. Visualization
+ox.plot_graph_route(G_proj, route, route_color='g', ...)
+```
+
+- **Output**: The system prints the estimated travel time in minutes.
+- **Visualization**: The optimal route is plotted in Green ('g') to distinguish the "Smart Path" (A*) from the "Shortest Path" (Dijkstra - Blue) and the "Simplest Path" (BFS - Red).
 
 ---
 
