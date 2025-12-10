@@ -98,7 +98,7 @@ pip install osmnx networkx matplotlib scipy scikit-learn
 * **Status:** Main Highway (Kertajaya) and Main Gate (Arief Rahman) are **BLOCKED**.
 * **Result:** System finds a "rat path" (*jalan tikus*) through the residential area (Jalan Gebang Lor) to bypass the blockage, proving the system's resilience.
 
-## 8. Code Implementation Details
+## 8. Code Implementation Details (dijkstra.py)
 
 This section explains the logic behind the `dijkstra.py` script, breaking down how the graph theory concepts are applied in Python.
 
