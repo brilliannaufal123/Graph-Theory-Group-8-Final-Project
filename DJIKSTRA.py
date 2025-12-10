@@ -1,5 +1,3 @@
-from collections import deque
-
 # ============================================================================
 # HOSPITAL DATASET
 # ============================================================================
@@ -61,7 +59,7 @@ inf = float('inf')
 # ============================================================================
 # ADJACENCY MATRIX (ROAD NETWORK)
 # Distance in minutes between hospitals/locations
-# For BFS, we only check if connection exists (non-zero, non-inf)
+# You can modify this matrix based on real Google Maps data
 # ============================================================================
 
 graph = [
@@ -95,10 +93,9 @@ graph = [
 
 # ============================================================================
 # ROAD STATUS (FOR DISASTER SIMULATION)
-# Modify this to simulate blocked roads (BFS ignores flooded status)
+# Modify this to simulate flooded or blocked roads
 # Format: (from_index, to_index): status
-# Status: "OPEN", "BLOCKED"
-# Note: BFS treats FLOODED roads as OPEN (only avoids BLOCKED)
+# Status: "OPEN", "FLOODED" (3x time), "BLOCKED" (infinite time)
 # ============================================================================
 
 road_status = {}  # Empty means all roads are OPEN by default
@@ -110,67 +107,82 @@ def set_road_status(from_node, to_node, status):
     road_status[(i, j)] = status
     road_status[(j, i)] = status  # Bidirectional
 
-def is_road_blocked(i, j):
-    """Check if a road is blocked"""
+def get_effective_distance(i, j, base_distance):
+    """Get effective distance considering road status"""
+    if base_distance == inf or base_distance == 0.0:
+        return base_distance
+    
     status = road_status.get((i, j), "OPEN")
-    return status == "BLOCKED"
+    
+    if status == "BLOCKED":
+        return inf
+    elif status == "FLOODED":
+        return base_distance * 3.0  # 3x penalty for flooded roads
+    else:
+        return base_distance
 
 # ============================================================================
-# BFS ALGORITHM IMPLEMENTATION
+# DIJKSTRA'S ALGORITHM IMPLEMENTATION
 # ============================================================================
 
-def bfs(graph, start_node_index):
+def dijkstra(graph, start_node_index):
     """
-    Implementation of Breadth-First Search Algorithm.
-    Finds paths with MINIMUM NUMBER OF HOPS (road segments),
-    ignoring actual distances.
+    Implementation of Dijkstra's Algorithm using an Adjacency Matrix.
     
     Args:
         graph: 2D adjacency matrix (list of lists)
         start_node_index: Index of the starting node
     
     Returns:
-        hops: List of minimum hop counts from start to each node
+        distances: List of shortest distances from start to each node
         previous_nodes: List of parent nodes for path reconstruction
     """
     num_nodes = len(graph)
     
     # Initialize data structures
+    distances = [inf] * num_nodes
     visited = [False] * num_nodes
     previous_nodes = [-1] * num_nodes
-    hops = [inf] * num_nodes
     
-    # BFS uses a queue (FIFO)
-    queue = deque([start_node_index])
-    visited[start_node_index] = True
-    hops[start_node_index] = 0
+    # Distance from start to itself is 0
+    distances[start_node_index] = 0
     
-    # BFS main loop
-    while queue:
-        # Dequeue the front node
-        u = queue.popleft()
+    # Main Dijkstra loop
+    for _ in range(num_nodes):
+        # Find unvisited node with minimum distance
+        min_dist = inf
+        u = -1
         
-        # Explore all neighbors
+        for i in range(num_nodes):
+            if not visited[i] and distances[i] < min_dist:
+                min_dist = distances[i]
+                u = i
+        
+        # If no reachable unvisited node found, break
+        if u == -1:
+            break
+        
+        # Mark current node as visited
+        visited[u] = True
+        
+        # Relax edges: update distances to neighbors
         for v in range(num_nodes):
             base_dist = graph[u][v]
             
-            # Check if edge exists (not infinity, not zero, not visited)
-            if base_dist != inf and base_dist != 0.0 and not visited[v]:
-                # Check if road is blocked
-                if not is_road_blocked(u, v):
-                    # Mark as visited
-                    visited[v] = True
+            # Check if edge exists (not infinity and not self-loop)
+            if base_dist > 0 and base_dist != inf and not visited[v]:
+                # Get effective distance considering road status
+                effective_dist = get_effective_distance(u, v, base_dist)
+                
+                if effective_dist != inf:
+                    new_dist = distances[u] + effective_dist
                     
-                    # Update hop count (one more hop than current node)
-                    hops[v] = hops[u] + 1
-                    
-                    # Record parent for path reconstruction
-                    previous_nodes[v] = u
-                    
-                    # Enqueue the neighbor
-                    queue.append(v)
+                    # Update if we found a shorter path
+                    if new_dist < distances[v]:
+                        distances[v] = new_dist
+                        previous_nodes[v] = u
     
-    return hops, previous_nodes
+    return distances, previous_nodes
 
 # ============================================================================
 # PATH RECONSTRUCTION
@@ -181,7 +193,7 @@ def get_path(previous_nodes, node_names, start_index, end_index):
     Reconstruct the path from start to end using parent pointers.
     
     Args:
-        previous_nodes: List of parent indices from BFS
+        previous_nodes: List of parent indices from Dijkstra
         node_names: List of node names
         start_index: Starting node index
         end_index: Ending node index
@@ -201,35 +213,10 @@ def get_path(previous_nodes, node_names, start_index, end_index):
     path.reverse()
     
     # Check if valid path exists
-    if len(path) > 0 and path[0] == node_names[start_index]:
+    if path[0] == node_names[start_index]:
         return " -> ".join(path)
     else:
         return "No path"
-
-# ============================================================================
-# CALCULATE ACTUAL DISTANCE FOR BFS PATH
-# ============================================================================
-
-def calculate_path_distance(graph, previous_nodes, start_index, end_index):
-    """
-    Calculate the actual total distance of the BFS path.
-    This helps compare BFS (minimum hops) vs actual distance.
-    
-    Returns:
-        Total distance in minutes along the BFS path
-    """
-    if previous_nodes[end_index] == -1 and start_index != end_index:
-        return inf
-    
-    total_distance = 0.0
-    current = end_index
-    
-    while previous_nodes[current] != -1:
-        parent = previous_nodes[current]
-        total_distance += graph[parent][current]
-        current = parent
-    
-    return total_distance
 
 # ============================================================================
 # MAIN PROGRAM
@@ -239,7 +226,7 @@ def main():
     """Main program execution"""
     
     print("="*90)
-    print("BFS ALGORITHM - HOSPITAL EVACUATION ROUTING SYSTEM")
+    print("DIJKSTRA'S ALGORITHM - HOSPITAL EVACUATION ROUTING SYSTEM")
     print("GROUP 8: Resilient Routing for Disaster-Proof Hospital Access")
     print("="*90)
     print()
@@ -252,12 +239,11 @@ def main():
     start_hospital = "UNA"  # Change this to any hospital code
     
     # Simulate disaster conditions (optional)
-    # Uncomment and modify these lines to simulate blocked roads:
+    # Uncomment and modify these lines to simulate road damage:
     
-    # set_road_status("DST", "SIL", "BLOCKED")   # Road is completely blocked
-    # set_road_status("UNA", "HSU", "BLOCKED")   # Another blocked road
-    
-    # Note: BFS ignores "FLOODED" status - it only avoids "BLOCKED" roads
+    # set_road_status("DST", "SIL", "FLOODED")   # Road is flooded (3x time)
+    # set_road_status("MYP", "PRS", "BLOCKED")   # Road is completely blocked
+    # set_road_status("UNA", "HSU", "FLOODED")   # Another flooded road
     
     # ========================================================================
     
@@ -269,12 +255,9 @@ def main():
         print(f"Available codes: {', '.join(nodes)}")
         return
     
-    # Run BFS algorithm
+    # Run Dijkstra's algorithm
     print(f"Starting Location: {start_hospital} - {hospital_names[start_hospital]}")
     print(f"Tier: {hospital_tiers[start_hospital]}")
-    print()
-    print("ℹ️  BFS finds routes with the MINIMUM NUMBER OF STOPS (hops),")
-    print("   ignoring actual road distances. Useful for avoiding many intersections.")
     print()
     
     # Display any active road restrictions
@@ -288,12 +271,12 @@ def main():
                 displayed.add((j, i))
         print()
     
-    hops_result, prev_nodes = bfs(graph, start_index)
+    distances, prev_nodes = dijkstra(graph, start_index)
     
     # Display results
-    print("="*100)
-    print(f"{'Code':<6} | {'Hospital Name':<40} | {'Stops':<8} | {'Actual Dist':<12} | {'Route'}")
-    print("-"*100)
+    print("="*90)
+    print(f"{'Hospital Code':<15} | {'Hospital Name':<40} | {'Distance (min)':<15} | {'Route'}")
+    print("-"*90)
     
     for i in range(len(nodes)):
         # Skip the starting hospital itself
@@ -302,61 +285,50 @@ def main():
         
         hospital_code = nodes[i]
         hospital_name = hospital_names[hospital_code]
-        hop_count = hops_result[i]
+        distance = distances[i]
         
-        if hop_count == inf:
-            hop_str = "∞"
-            dist_str = "N/A"
-            path_str = "Not Reachable"
+        if distance == inf:
+            distance_str = "Not Reachable"
+            path_str = "-"
         else:
-            hop_str = f"{int(hop_count)}"
-            actual_dist = calculate_path_distance(graph, prev_nodes, start_index, i)
-            dist_str = f"{actual_dist:.1f} min"
+            distance_str = f"{distance:.1f}"
             path_str = get_path(prev_nodes, nodes, start_index, i)
         
         # Add tier indicator
         tier = hospital_tiers[hospital_code]
+        hospital_display = f"{hospital_name} [{tier}]"
         
-        print(f"{hospital_code:<6} | {hospital_name:<40} | {hop_str:<8} | {dist_str:<12} | {path_str}")
+        print(f"{hospital_code:<15} | {hospital_display:<40} | {distance_str:<15} | {path_str}")
     
-    print("="*100)
+    print("="*90)
     
-    # Find hospitals with minimum hops for each tier
-    print("\n🏥 RECOMMENDED EVACUATION DESTINATIONS (by minimum stops):")
+    # Find nearest reachable top-tier hospital
+    print("\n🏥 RECOMMENDED EVACUATION DESTINATIONS:")
     print("-"*90)
     
     tier_priority = ["Top-Tier", "Upper-Tier", "Middle-Tier", "Lower Middle-Tier"]
     
     for tier in tier_priority:
-        tier_hospitals = [(i, hops_result[i]) for i in range(len(nodes)) 
+        tier_hospitals = [(i, distances[i]) for i in range(len(nodes)) 
                          if i != start_index and hospital_tiers[nodes[i]] == tier 
-                         and hops_result[i] != inf]
+                         and distances[i] != inf]
         
         if tier_hospitals:
-            # Sort by hop count
+            # Sort by distance
             tier_hospitals.sort(key=lambda x: x[1])
             
             print(f"\n{tier} Hospitals:")
-            for rank, (idx, hop_count) in enumerate(tier_hospitals[:3], 1):  # Show top 3
+            for rank, (idx, dist) in enumerate(tier_hospitals[:3], 1):  # Show top 3
                 code = nodes[idx]
                 name = hospital_names[code]
                 path = get_path(prev_nodes, nodes, start_index, idx)
-                actual_dist = calculate_path_distance(graph, prev_nodes, start_index, idx)
-                
                 print(f"  {rank}. {code} - {name}")
-                print(f"     Stops: {int(hop_count)} road segments")
-                print(f"     Actual Distance: {actual_dist:.1f} minutes")
+                print(f"     Distance: {dist:.1f} minutes")
                 print(f"     Route: {path}")
     
     print("\n" + "="*90)
     print("ALGORITHM COMPLETED SUCCESSFULLY")
     print("="*90)
-    print()
-    print("📊 COMPARISON NOTE:")
-    print("   - BFS minimizes NUMBER OF STOPS (intersections/transfers)")
-    print("   - Dijkstra minimizes ACTUAL DISTANCE/TIME")
-    print("   - In disasters, fewer stops may mean fewer risk points,")
-    print("     but Dijkstra usually gives faster total evacuation time.")
 
 if __name__ == "__main__":
     main()
